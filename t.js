@@ -6,23 +6,31 @@ var path = require('path');
 var rootDir = __dirname
 var allFiles = {}
 
-var walk = function(dir, done) {
+var walk = function (dir, done) {
   var results = [];
-  fs.readdir(dir, function(err, list) {
-    if (err) return done(err);
+  fs.readdir(dir, function (err, list) {
+    if (err) {
+      return done(err);
+    }
     var pending = list.length;
-    if (!pending) return done(null, results);
-    list.forEach(function(file) {
+    if (!pending) {
+      return done(null, results);
+    }
+    list.forEach(function (file) {
       file = path.resolve(dir, file);
-      fs.stat(file, function(err, stat) {
+      fs.stat(file, function (err, stat) {
         if (stat && stat.isDirectory()) {
-          walk(file, function(err, res) {
+          walk(file, function (err, res) {
             results = results.concat(res);
-            if (!--pending) done(null, results);
+            if (!--pending) {
+              done(null, results);
+            }
           });
         } else {
           results.push(file);
-          if (!--pending) done(null, results);
+          if (!--pending) {
+            done(null, results);
+          }
         }
       });
     });
@@ -30,19 +38,19 @@ var walk = function(dir, done) {
 };
 
 function getTSFiles() {
-	return new Promise((resolve, reject) => {
-		walk('.', function(err, results) {
-			if (err) {
-				reject(err)
-			} else {
-				resolve(results.filter(f => f.substr(-3, 3) === '.ts'))
-			}
-		});	
-	})
+  return new Promise((resolve, reject) => {
+    walk('.', function (err, results) {
+      if (err) {
+        reject(err)
+      } else {
+        resolve(results.filter(f => f.substr(-3, 3) === '.ts'))
+      }
+    });
+  })
 }
 
 function convert(file) {
-	console.log('--', file)
+  console.log('--', file)
   let currentFileDir = path.parse(file).dir
 
   let fileInfo = allFiles[file]
@@ -58,18 +66,19 @@ function convert(file) {
     modulePath = modulePath.substr(1, modulePath.length - 2)
 
     let resolvedModulePath
-    if(modulePath.substr(0, 1) === '.') {
+    if (modulePath.substr(0, 1) === '.') {
       resolvedModulePath = path.resolve(currentFileDir, modulePath)
     } else {
       resolvedModulePath = path.resolve(modulePath)
     }
     let replacement
     let importFileInfo = allFiles[resolvedModulePath + '.ts']
-    if(importFileInfo && importFileInfo.hasDefaultExport) {
+    if (importFileInfo && importFileInfo.hasDefaultExport) {
       replacement = `import ${res[1]} from ${res[2]}`
     } else {
       replacement = `import * as ${res[1]} from ${res[2]}`
     }
+
     newContent = newContent.replace(importExpression, replacement)
   }
   fs.writeFileSync(file, newContent)
@@ -78,22 +87,22 @@ function convert(file) {
 function readAllFiles(files) {
   files.forEach(f => {
     let content = fs.readFileSync(f, "utf-8")
-    let hasDefaultExport = content.indexOf('export =') !== -1 //заменить на регексп
+    let hasDefaultExport = content.indexOf('export =') !== -1
     allFiles[f] = {
-      content: content,
+      content: content.replace('export = ', 'export default '),
       hasDefaultExport: hasDefaultExport
     }
   })
 }
 
 getTSFiles()
-	.then((files) => {
-		console.log('files', files.length)
+  .then((files) => {
+    console.log('files', files.length)
     readAllFiles(files)
-		files.forEach(f => convert(f))
+    files.forEach(f => convert(f))
     console.log('Done')
-	})
-	.catch((err) => {
-		console.log(err)
-	})
+  })
+  .catch((err) => {
+    console.log(err)
+  })
 
